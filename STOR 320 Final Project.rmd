@@ -1,0 +1,483 @@
+---
+title: "Final Paper"
+author: "STOR 320.02 Group 4"
+date: "Dec.5, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidyr) 
+library(ggplot2) 
+library(dplyr) 
+library(lvplot) 
+library(knitr)
+library(kableExtra)
+library(caret)
+library(Matrix)
+library(foreach)
+library(glmnet)
+library(randomForest)
+library(ggpubr)
+
+
+#Import Data
+ShoppingR = read.csv("online_shoppers_intention.csv")
+head(ShoppingR)
+
+#Clean Data
+#take only datasets with positive or zero Duration value and NA values(if all the values are missing)
+Shopping = subset(ShoppingR,Administrative_Duration >=0 |Informational_Duration >=0|
+                     ProductRelated_Duration >=0)
+head(Shopping)
+```
+
+
+# INTRODUCTION
+
+Online shopping has become a mainstay in the retail marketplace of consumer goods. When a person visits an e-commerce website, knowing whether or not they will make a purchase confers tremendous economic value. A 2018 study in the journal “Neural Computing and Applications” titled, “Real-time prediction of online shoppers’ purchasing intention using multilayer perceptron and LSTM recurrent neural networks” employs a wealth of data logged from online consumer behavior at a large online bookstore’s website for just this purpose: to determine if a customer will make a purchase. The preprocessing data used in this study is known on Kaggle simply as “Online Shopper’s Intention,” and it contains 12,330 rows and 18 columns of data representing 10 numerical variables and 8 categorical variables. Of these, 17 predictor variables quantify certain kinds of website activity and classify consumers based on quasi-demographic information, ultimately to determine a lone response variable, whether or not a transaction was made.
+
+
+The first question our group chose to investigate in further detail is: Which variables are significant in predicting whether revenue is made or not? Our group found this question paramount to investigate because increasing revenue is a primary motivation when assuming a business mindset, but also plainly because using big data to understand customer purchasing behavior is the cardinal reason for which such datasets exist. As a secondary motivation, we were generally curious as to which customer behaviors actually do correlate with transactions, and moreover we were curious to verify our intuitions. For instance, sensible contributors to transaction execution include whether or not a purchase occurred on a weekend, proximity of purchases to holidays, duration spent viewing a product page, and others, but in faithfully fulfilling essential business roles, we thought of the potential importance of certain operating systems, browsers, regions, traffic types, and intersections thereof in characterizing our market base and influencing marketing strategies, in this case as online booksellers. In these ways, the ability to identify extremely significant variables using data driven techniques is a novel, insightful, and decisive way of maximizing revenue generation. 
+
+
+The second question our group chose to investigate in further detail is: Are returning visitors more likely to make revenue on the website? And as a corollary: Which variables are significant in predicting whether the visitor is new or returning? Our group found asking this question relevant less as a primary methodology and more as a supporting strategy. Although the data were obviously originally intended to predict transaction occurrence, treating Visitor Type as an output variable is a coherent and creative use of the dataset in learning more about behaviors and characteristics correlated with repeat customers. Traditionally, companies rely on a loyal customer base. Phrased a little differently, companies’ business plans prefer consistent and periodic use of the product or service sold, and repeat customers tend to fulfill this preference very well. Additionally and depending on the results, interpreting these variables as causative factors might inform storefront architects what not to do, or rather what could be done better in order to make a customer more likely to come back. 
+
+# DATA
+
+The dataset named “Online Shopper’s Intention” came from Kaggle. However, the original source was from the Center for Machine Learning and Intelligent Systems which maintains 488 datasets so researchers and students alike can investigate data in machine learning. Specifically, the data comes from an online bookstore. The original dataset that we started with contained 12,330 observations of 10 numeric and 8 categorical variables. Each observation belonged to a different online user within a one-year period. Once we cleaned up the data, we had a total of 12,283 observations. This “clean up” included taking out the rows that did not contain data and changing some of the names to numbers for easier management. 
+
+
+```{r,echo=F}
+
+table = matrix(c("Numerical","Total time spent on product related site",0,63973,1912.25,602.5,1199.253,"",
+                 "Numerical","Number of product related pages visited",0,705,44.45,18,31.84654,"",
+                 "Numerical","Number of Pages Visited about Account Management", 0,27,3.32,1,2.323862,"",
+                 "Numerical","Number of Pages Visited about Website Info", 0,24,1.26,0,0.5053326,"",
+                 "Numerical","Average exit rate of page visited",0,0.2,0.05,0.025,0.04261059,"",
+                 "Numerical","Average page value of page visited",0,361,18.55,0,5.911793,"",
+                 "Numerical","Average bounce rate of page visited",0,0.2,0.04,0.003076923,0.0217235,"",
+                 "Numerical","Closness of visiting time to a special day: 0 (farthest) to 1 (closest)", 0, 1.0, 0.19,0,0.0615322,"",
+                 "Categorical","Month of visit date","","","","","",12,
+                 "Categorical","Operating system of visitor","","","","","",8,
+                 "Categorical","Weekend or not","","","","","",2,
+                 "Categorical","Type of Visitors","","","","","",3,
+                 "Categorical","Revenue made or not","","","","","",2), ncol = 8,byrow=TRUE)
+colnames(table) <- c("Variable Type","Description","Min. Value","Max. Value","Standard Deviation", "Median","Mean","Levels of Categorical Variables")
+rownames(table) <- c("Product Related Duration (seconds)","Product Related (number of pages)","Administrative","Informational","Exit Rates","Page Values","Bounce Rates","SpecialDay","Month","Operating Systems","Weekend (True/False)","VisitorType (New/Returning/Other)","Revenue (True/False)")
+table <- as.table(table)
+table%>%
+  kable() %>%
+  kable_styling()
+
+```
+
+The variables in our dataset include ones such as the month an item was purchased, what browser the customer used, and the total amount of time a user spent on an informational website page. After running our tests to determine which variables were significant in predicting revenue and visitor type, we ended up only focusing on a few of the eighteen initial variables. “Revenue” is a categorical variable that indicates whether a transaction was made for the visit. Revenue has two responses, denoted as true or false. “VisitorType” is another categorical variable that shows us the type of visitor a person was. There are three options for this: returning, new, or other. This poses a problem for the dataset because other should not be a type of visitor, since people should be clearly defined as returning or new. However, only 1% of the total responses were deemed “Other.” We assumed that for some customers the website failed to recognize the information in the cookie or in their record so that these customers were labeled as “Other”. For predicting significant terms in our question for visitor type, we decided to exclude the term “Other” from predictions. This brought the dataset down to 12,198 observations.
+
+
+“Product Related Duration,” “Product Related,” “Administrative,” “Informational,” “Exit Rates,” “Bounce Rates,” “Page Values,” and “Special Day” were other significant numeric variables that we used throughout our investigation of this dataset. We deemed them as significant based on our results section below. “Product Related Duration” measures the time, in seconds, that a user is on a product related page. For clarification, this would be a page that has the item you want to buy on it. “Product Related” gives us the number of website pages visited by the user that falls under the product related category. The “Administrative” and “Informational” variables are similar to the “Product Related” ones. “Administrative” refers to the number of website pages visited about account management while Informational is the number of pages visited about the website or contact information pages. “Exit Rates” gives the mean exit rate from website page per user. This is calculated as the percentage of users who left the website from a particular page compared to all the views on that page. “Bounce Rates” is calculated by taking the percentage of visitors entering a page and then immediately leaving the site from that same page. “Page Values” is the average value, or price, of a page that the user visited before making a transaction. We are assuming this variable is in dollars, but this is another issue in our dataset where some of the variables are unclear about what they mean. Finally, “Special Day” shows how close the website page visit was to a holiday.
+
+
+“Month,” “Weekend,” and “Operating Systems” were also significant categorical variables. “Month” shows the month of the year that a website page was visited. In order to make this variable easier to deal with, we changed all of the months to numbers (i.e. Jan=1, Feb=2, etc.). However, no user in this dataset viewed a page in January or April, so we only used ten of the months. “Weekend” shows if the website visit was on a weekend or not. Finally, “Operating Systems” has eight different levels. It shows the operating system that a visitor uses.
+
+
+```{r,echo=F}
+Shopping1 = Shopping %>%
+            mutate(Month = as.character(Month)) %>%
+            mutate(Month = match(Month, month.abb))
+
+Shopping2 = Shopping1 %>%
+            mutate(Month = ifelse(is.na(Month), 6, Month)) %>%
+            mutate(VisitorType = as.character(VisitorType))
+
+
+Shopping3 = subset(Shopping2,Administrative_Duration >=0 |Informational_Duration >=0|
+                     ProductRelated_Duration >=0)
+
+```
+
+```{r,echo=F}
+SMonth = Shopping %>%
+  group_by(Month)%>%
+  summarize(count = n())
+
+
+p1 = ggplot(SMonth,aes(x="",y=count,fill=Month))+
+  scale_fill_discrete(name="Month",breaks=c("Feb", "Mar", "May", "June", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
+                         labels=c("February: 1.5%", "March: 15.5%", "May: 27.3%", "June: 2.3%", "July: 3.5%", "August: 3.5%", "September: 3.6%", "October: 4.5%", "November: 24.3%", "December: 14.0%" )) +
+  geom_bar(stat="identity")+
+  coord_polar("y",start=0)+
+  labs(title="Visits by Month")
+  
+```
+
+
+
+```{r,echo=F}
+SVisitorType = Shopping %>%
+  group_by(VisitorType)%>%
+  summarize(Num = n())
+  
+
+p2 =ggplot(SVisitorType,aes(x="",y=Num,fill=VisitorType))+
+  scale_fill_discrete(name="Visitor Type",breaks=c("New_Visitor", "Returning_Visitor", "Other"),
+                         labels=c("New Visitor: 14%", "Returning Visitor: 86%", "Other: 1%")) +
+  geom_bar(stat="identity")+
+  coord_polar("y",start=0)+
+  labs(title="Visitor Type")
+```
+
+```{r,echo=F}
+SRevenue = Shopping %>%
+  group_by(Revenue)%>%
+  summarize(Num = n())
+  
+
+p3= ggplot(SRevenue,aes(x="",y=Num,fill=Revenue))+
+  scale_fill_discrete(name="Revenue",breaks=c("TRUE", "FALSE"),
+                         labels=c("True: 15%", "False: 85%")) +
+  geom_bar(stat="identity")+
+  coord_polar("y",start=0)+
+  labs(title="Count for Revenue")
+```
+
+
+
+
+```{r,echo=F}
+SOS = Shopping %>%
+  mutate(OperatingSystems = factor(OperatingSystems)) %>% 
+  group_by(OperatingSystems)%>%
+  summarize(Num = n())
+
+
+p4=ggplot(SOS,aes(x="",y=Num,fill=OperatingSystems))+
+  scale_fill_discrete(name="Operating Systems",breaks=c("1", "2", "3", "4", "5", "6", "7", "8"),
+                         labels=c("1: 25.9%", "2: 66.0%", "3: 25.6%", "4: 4.8%", "5: 0.06% ", "6: 0.19% ", "7: 0.07%", "8: 0.79%")) +
+  geom_bar(stat="identity")+
+  coord_polar("y",start=0)+
+  labs(title="Operating Systems")
+```
+
+```{r,echo=F}
+SWeekend = Shopping %>%
+  group_by(Weekend)%>%
+  summarize(Num = n())
+  
+
+p5= ggplot(SWeekend,aes(x="",y=Num,fill=Weekend))+
+  scale_fill_discrete(name="Weekend",breaks=c("TRUE", "FALSE"),
+                         labels=c("True: 23%", "False: 77%")) +
+  geom_bar(stat="identity")+
+  coord_polar("y",start=0)+
+  labs(title="Number of Weekend Visits")
+  
+```
+
+```{r,echo=F}
+ggarrange(p2, p3,p4, p1+ rremove("x.text"), 
+          ncol = 2, nrow = 2)
+```
+
+
+While this dataset provides a lot of information, it also poses a lot of problems. We have already mentioned a few through the variables that we used throughout our investigation of the data. Some other problems with the dataset are the high correlations between many of the variables. Exit Rates are highly correlated with Bounce Rates. Page Values are also highly correlated with Product Related and Product Related Duration. The dataset is unbalanced for many variables. For example, traffic type 12 in TrafficType has only 2 rows of data, which might make it difficult to build models that predict well on this traffic type. On top of this, some of the other variables’ responses are nonsense. To give you an example, for the categorical variable browser, the answers range from 1 to 13. It is great that we have 13 different browser types, but there is no way for us to know which numbers correspond to Google or Safari or Firefox. This is a common theme among the variables “OperatingSystems,” “Region” (what geographic region in which the site was visited), and “TrafficType” (from where the site was visited from, i.e. text message or banner ad), as well as “Browser.” Also, in the variable “Special Day,” we are not presented with a list of what is considered a holiday. “Special Day” is also problematic because only special days in February and May were identified. However, someone somewhere has the names that correspond to the numbers, and thus our research will still be pertinent to the companies that have this information. 
+
+
+
+# RESULTS
+
+####Question 1: Which variables are significant in predicting whether the revenue is made or not?
+
+To investigate the important variables in predicting the successfulness of the transaction, we tried to do forward and backward selection to build a logistic regression model and used Elastic Net to build an alternative one. Before building models, we first split the data into train and test datasets. 
+
+We used the leaps package to implement forward and backward selection and plotted the values of Cp, BIC, and adjusted R^2 individually to observe their variation versus the number of variables. The lowest Cp, BIC, and highest adjusted R^2 happened at the different number of variables, but we found that as model complexity increased the rate of change for Cp, BIC and adjusted R^2 slowed down after having 6 variables. Thus, we decided to include 6 variables in our model because we thought simplicity outweighed the small improvement from adding more variables. Thus, we went back to the forward and backward selection summary table to identify the selected models with 6 variables, and we found that forward and backward selection gave the same 6 variables. Then we built a logistic regression model using these 6 variables and named this model Model1. This model achieved a prediction accuracy of 87.68%, specificity of 98.79%, and sensitivity of 25.18% on test data.
+
+Next, we tried Elastic Net, which is a regularized regression method that linearly combines the penalties of the lasso and ridge methods. Through the glmnet package, we selected the alpha of 0.75 and lambda of 0.01213 with the smallest misclassification error of 0.1221283 using cross-validation. We fitted the elastic-net regularization path for the logistic regression model and named the model Model2. Model2 achieved a prediction accuracy of 88.23%, sensitivity of 98.09586%, specificity of 33.39416% on test data. We noticed that Model2 also includes six variables but the variables included are different. It includes VistorType and ProductRelated instead of BounceRates and BrowserType. Thus, we decided to play around with the 8 variables we found significant in our previous model selection to build the best model. After trying different combinations of variables, we used the glm function to build a logistic regression model with 4 variables from Model1 and two variables from Model2 and named this model Model3; Model3 has the highest accuracy of 88.63000%. 
+
+The coefficients of Model3 tell us that visitors with high exit rates, visitors who spend less time reading product related pages, visitors with low page values, and returning visitors are less likely to purchase on the website. Certain months like February, December, March, and May are not a good time for visitors to make a purchase online even though the number of visits might be large during these months. The biggest problem with all the models is that the sensitivity is much lower than specificity. All the models had a higher accuracy for predicting ‘0’ revenues than predicting ‘1’ revenues. This is because the dataset is biased towards Revenue equals “0” with about 85% of the datasets making no revenue. Our model is not significantly effective in predicting whether the revenue is made or not, but it did help to make a better prediction than guessing based on the ratio directly as its accuracy is slightly higher than 85%.
+
+```{r,echo=F}
+smp_size <- floor(0.7 * nrow(Shopping))
+set.seed(326)
+train_ind <- sample(seq_len(nrow(Shopping)), size = smp_size)
+train <- Shopping[train_ind, ]
+test <- Shopping[-train_ind, ]
+# table display all the accuracy and sensitivity
+table2 =  matrix(c(-1.62040588,0.000000000000000386,
+                 0.00004880,0.07720,
+                 0.00235632, 0.06418,
+                 -17.87071426,0.0000000000000002,
+                 0.08203139,0.0000000000000002,
+                 -0.70618600,0.22279,
+                 -0.28768285,0.00500,
+                 -0.65228490,0.00207,
+                 -2.44329833, 0.01901,
+                 -0.04711783,0.85581,
+                 -0.17117976,0.59038,
+                 -0.50579562,0.01616,
+                 -0.61350963,0.00183), ncol = 2,byrow=TRUE)
+
+colnames(table2) <- c("Coefficient","p-value")
+rownames(table2) <- c("Intercept","ProductRelated_Duration","ProductRelated","ExitRates","PageValues",
+                     "VisitorTypeOther", "VisitorTypeReturning_Visitor", "MonthDec", "MonthFeb", "MonthJul",
+                     "MonthJune", "MonthMar", "MonthMay")
+
+table2 <- as.table(table2)
+table2 %>%
+  kable() %>%
+  kable_styling() %>%
+   add_header_above(c("Summary of Model 3", "", ""))
+```
+
+Finally, we were wondering whether using more advanced techniques would further improve our model's predictive performance. So, we decided to try machine learning techniques. First, we ran an initial Random Forest model with 100 trees. We looked at the error rates associated with the different number of trees. We found that there was no significant improvement in the error rate when the model had more than 20 trees. So, we decided to just use 20 trees as the ntree parameter. Next, we tuned the number of variables randomly sampled as candidates at each split. The out-of-bag error was shown to continuously increasing, with the lowest out-of-bag error at 1. We thought just using this would be very biased, so we decided to go with the default value (sqrt(6)). Combining these, we used ntree=20 and mtry=sqrt(6) as the hyperparameters in the final Random Forest model. The model obtained an accuracy of 90.39% and a sensitivity of 61.5%, which was the best we had so far. The specificity, 95.56%, was not as good as other models. However, we considered this Random Forest model the best-performing model among all.  
+
+```{r,echo=F}
+# table display all the accuracy and sensitivity
+table = matrix(c(0.8765,0.9879,0.2500,
+                 0.8823038,0.9809586,0.3339416,
+                 0.8863,0.9732,0.3975,
+                 0.9039,0.9556,0.615), ncol = 3,byrow=TRUE)
+colnames(table) <- c("Accuracy","Specificity","Sensitivity")
+rownames(table) <- c("Model1","Model2","Model3","Random Forest Model")
+table <- as.table(table)
+table%>%
+  kable() %>%
+  kable_styling()
+```
+
+```{r,echo=F}
+set.seed(326)
+df = Shopping
+#modRF=randomForest(Revenue~.,data=df,ntree=100, importance=TRUE,na.action=na.exclude)
+
+#plot(modRF,main = "Initial Random Forest Model") 
+#tuneRF(df[,-1], df[,1], stepFactor=0.5, ntree = 20, trace = TRUE, improve = 0.005)
+set.seed(326)
+suppressWarnings({ modRF=randomForest(Revenue~.,data=df,ntree=20, mtry=6, importance=TRUE,
+                  na.action=na.exclude) })
+yhat_rf = predict(modRF,test)
+
+test$Revenue = as.factor(ifelse(test$Revenue==TRUE,1,0))
+#confusionMatrix(yhat_rf,test$Revenue)
+varImpPlot(modRF, sort = TRUE, n.var = 10, main = "Top 10 important variables")
+```
+
+
+
+
+
+```{r,echo=F}
+##### code below #######
+smp_size <- floor(0.7 * nrow(Shopping))
+set.seed(326)
+train_ind <- sample(seq_len(nrow(Shopping)), size = smp_size)
+train <- Shopping[train_ind, ]
+test <- Shopping[-train_ind, ]
+```
+
+```{r,echo=F}
+library(leaps)
+forward=regsubsets(Revenue~.,data=train,nvmax=18,method = "forward")
+sumF = summary(forward)
+#plot(sumF$cp, xlab = "Complexity", ylab = "Cp", type = "l")
+#points(which.min(sumF$cp), min(sumF$cp), col = "red")
+
+
+#plot(sumF$bic, xlab = "Complexity", ylab = "BIC", type = "l")
+#points(which.min(sumF$bic), min(sumF$bic), col = "red")
+
+
+#plot(sumF$adjr2, xlab = "Complexity", ylab = "Adjusted R^2", type = "l")
+#points(which.max(sumF$adjr2), max(sumF$adjr2), col = "red")
+
+moShoppinginal = glm(Revenue ~ ProductRelated_Duration + BounceRates + ExitRates + PageValues + OperatingSystems + Month, data=train)
+#summary(moShoppinginal)
+yhat_log <- moShoppinginal %>% predict(test, type = "response")
+yhat_log <- as.factor(ifelse(yhat_log > 0.5, 1, 0))
+test$Revenue = as.factor(ifelse(test$Revenue==TRUE,1,0))
+#confusionMatrix(yhat_log,test$Revenue)
+```
+
+```{r,echo=F}
+library(glmnet)
+Shopping2 = train %>%
+            mutate(Month = as.character(Month)) %>%
+            mutate(Month = match(Month, month.abb))
+Shopping2$Weekend=ifelse(Shopping2$Weekend==TRUE,1,0)
+Shopping2$Revenue=ifelse(Shopping2$Revenue==TRUE,1,0)
+Shopping2$VisitorType=ifelse(Shopping2$VisitorType=="Returning_Visitor",1,
+                             ifelse(Shopping2$VisitorType=="New_Visitor",2,0))
+
+Shopping2 = na.omit(Shopping2)[,c(18,1:17)]
+
+
+set.seed(216)
+cvmod.0=cv.glmnet(y=as.factor(Shopping2$Revenue),x=as.matrix(Shopping2[,-1]),alpha=0,
+                  family="binomial",type.measure="class")
+set.seed(216)
+cvmod.25=cv.glmnet(y=as.factor(Shopping2$Revenue),x=as.matrix(Shopping2[,-1]),alpha=0.25,
+                   family="binomial",type.measure="class")
+set.seed(216)
+cvmod.5=cv.glmnet(y=as.factor(Shopping2$Revenue),x=as.matrix(Shopping2[,-1]),alpha=0.5,
+                  family="binomial",type.measure="class")
+set.seed(216)
+cvmod.75=cv.glmnet(y=as.factor(Shopping2$Revenue),x=as.matrix(Shopping2[,-1]),alpha=0.75,
+                   family="binomial",type.measure="class")
+set.seed(216)
+cvmod.1=cv.glmnet(y=as.factor(Shopping2$Revenue),x=as.matrix(Shopping2[,-1]),alpha=1,
+                  family="binomial",type.measure="class")
+
+CV.0.ERROR=cvmod.0$cvm[which(cvmod.0$lambda==cvmod.0$lambda.1se)]
+CV.25.ERROR=cvmod.25$cvm[which(cvmod.25$lambda==cvmod.25$lambda.1se)]
+CV.5.ERROR=cvmod.5$cvm[which(cvmod.5$lambda==cvmod.5$lambda.1se)]
+CV.75.ERROR=cvmod.75$cvm[which(cvmod.75$lambda==cvmod.75$lambda.1se)]
+CV.1.ERROR=cvmod.1$cvm[which(cvmod.1$lambda==cvmod.1$lambda.1se)]
+
+MOD.RESULT=tibble(alpha=c(0,0.25,0.5,0.75,1),
+                  lambda=c(cvmod.0$lambda.1se,cvmod.25$lambda.1se,
+                           cvmod.5$lambda.1se,cvmod.75$lambda.1se,
+                           cvmod.1$lambda.1se),
+                  CV.Error=c(CV.0.ERROR,CV.25.ERROR,CV.5.ERROR,
+                             CV.75.ERROR,CV.1.ERROR))
+
+
+Shopping3 = test %>%
+            mutate(Month = as.character(Month)) %>%
+            mutate(Month = match(Month, month.abb))
+Shopping3$Weekend=ifelse(Shopping3$Weekend==TRUE,1,0)
+Shopping3$Revenue=ifelse(Shopping3$Revenue==TRUE,1,0)
+Shopping3$VisitorType=ifelse(Shopping3$VisitorType=="Returning_Visitor",1,
+                             ifelse(Shopping3$VisitorType=="New_Visitor",2,0))
+Shopping3 = na.omit(Shopping3)[,c(18,1:17)]
+
+
+best.alpha=MOD.RESULT$alpha[which.min(MOD.RESULT$CV.Error)]
+best.lambda=MOD.RESULT$lambda[which.min(MOD.RESULT$CV.Error)]
+best.mod=glmnet(y=as.factor(Shopping2$Revenue),x=as.matrix(Shopping2[,-1]),
+                nlambda=1,lambda=best.lambda,alpha=best.alpha,
+                family="binomial")
+best.coef=as.matrix(coef(best.mod))
+
+
+# train confusion matrix
+Shopping2$Prediction = predict(best.mod,newx = as.matrix(Shopping2[,-1]),type="class")
+Shopping2$Revenue=ifelse(Shopping2$Revenue==1,"Yes","No")
+Shopping2$Predict=ifelse(Shopping2$Predict=="1","Yes","No")
+
+TrainTable = table(Shopping2[,c("Predict","Revenue")])
+
+
+# test confusion matrix
+Shopping3$Prediction = predict(best.mod,newx = as.matrix(Shopping3[,-1]),type="class")
+Shopping3$Revenue=ifelse(Shopping3$Revenue==1,"Yes","No")
+Shopping3$Predict=ifelse(Shopping3$Predict=="1","Yes","No")
+
+TestTable = table(Shopping3[,c("Predict","Revenue")])
+
+Testsensitivity = (183)/(183+365)
+Testspecificity= (2988)/(58+2988)
+accuracy = (2988+183)/(2988+58+365+183)
+
+
+```
+
+
+```{r,echo=F}
+smp_size <- floor(0.7 * nrow(Shopping))
+set.seed(326)
+train_ind <- sample(seq_len(nrow(Shopping)), size = smp_size)
+train <- Shopping[train_ind, ]
+test <- Shopping[-train_ind, ]
+
+FinalModel=glm(Revenue~ProductRelated_Duration + ProductRelated +ExitRates + 
+             PageValues + VisitorType + Month,data = train,family=binomial)
+yhat_log2 <- FinalModel %>% predict(test, type = "response")
+yhat_log2 <- as.factor(ifelse(yhat_log2 > 0.5, 1, 0))
+test$Revenue = as.factor(ifelse(test$Revenue==TRUE,1,0))
+#summary(FinalModel)
+# confusionMatrix(yhat_log2,test$Revenue)
+```
+
+
+
+
+
+####Question 2: Are returning visitors more likely to make revenue on the website? Which variables are significant in predicting whether the visitor is new or returning? 
+
+We knew from our first question that VisitorType was significant in predicting revenue. We wanted to further investigate how VisitorType was related to Revenue. First of all, we did not want to look at the “Other” visitor type while we analyzing the relationship between VisitorType and Revenue, so we took it out leaving only two levels: “New_Visitor” and “Returning_Visitor.” We looked at the proportion of successful transactions among new visitors and returning visitors. It seems that returning visitors have a lower proportion of successful transactions in the dataset.
+
+```{r,echo=F}
+NewShopping = Shopping %>% filter(VisitorType != "Other")
+smp_size <- floor(0.7 * nrow(NewShopping))
+set.seed(326)
+train_ind <- sample(seq_len(nrow(NewShopping)), size = smp_size)
+Newtrain <- NewShopping[train_ind, ]
+Newtest <- NewShopping[-train_ind, ]
+
+Shopping%>%
+  filter(VisitorType != "Other")%>%
+  group_by(VisitorType,Revenue)%>%
+  summarize(Number_Successful_Transaction=n())%>%
+  mutate(Proportion_Successful_Transaction = Number_Successful_Transaction/sum(Number_Successful_Transaction))%>%
+  filter(Revenue==TRUE)%>%
+  arrange(desc(Proportion_Successful_Transaction))%>%
+  kable() %>%
+  kable_styling()
+
+shopNew = Shopping %>%
+  filter(VisitorType != "Other")
+modVisitor = glm(Revenue~VisitorType, data=shopNew)
+#summary(modVisitor)
+
+```
+
+We built a logistic model using only VisitorType to predict Revenue, and it shows that VisitorType in the model has a very significant p-value of 0.0000000000000002 and a negative coefficient of -0.109168. It gives us some evidence that returning visitors might be less likely making a purchase on the website. Knowing this information, we wanted to know if we could predict whether a user was a returning visitor or a new visitor based on other variables we had. 
+
+```{r,echo=F}
+table3 =  matrix(c(0.249115,"0.0000000000000002",
+                 -0.109168 ,"0.0000000000000002"), ncol = 2,byrow=TRUE)
+
+colnames(table3) <- c("Coefficient","p-value")
+rownames(table3) <- c("Intercept", "VisitorType: Returning_visitor")
+table3 <- as.table(table3)
+table3 %>%
+  kable() %>%
+  kable_styling()
+```
+
+To investigate the important variables in predicting the VisitorType, we split the data into train and test and turn VisitorType into a binary variable with “1” indicating new visitor and “0” indicating returning visitor. In another word, our model is used to predict whether the visitor is a new visitor or not (returning visitor). We used forward selection and backward selection and looked at the Cp, BIC and adjusted R^2 of models with different numbers of variables. Looking at where rates of change of Cp, BIC, and adjusted R^2 versus the number of variables slowed down, we identified 7 variables to include in our model. Then we built a logistic regression model using these 7 variables and named the model Visitor_Model1. This model has a very low accuracy of about 13.47% and an extremely low sensitivity of 1.1353%, so we tried all-subsets method to look at all combinations of variables to predict on whether the visitor was new visitor or not; the model with the lowest BIC contains 11 variables and has an accuracy of 13.28%. The specificity is 92.2290%, and the sensitivity is 1.1038%. The model did very poorly in predicting whether the visitor is a new visitor or returning visitor. We found at this point that building model to predict on VisitorType is not very effective because the dataset is very biased towards “Returning_Visitor" and the variables we have might not be appropriate to predict on the VisitorType.
+
+
+
+```{r,echo=F}
+# table display all the accuracy and sensitivity
+table = matrix(c(0.1347,0.934560,0.011353,
+                 0.1328,0.922290,0.011038), ncol = 3,byrow=TRUE)
+colnames(table) <- c("Accuracy","Specificity","Sensitivity")
+rownames(table) <- c("Visitor_Model1","Visitor_Model2")
+table <- as.table(table)
+table%>%
+  kable() %>%
+  kable_styling()
+
+
+```
+
+
+#CONCLUSION
+
+One question that we investigated was: which variables are significant in predicting whether revenue is made or not. Using techniques we learned in class, we build Model3 with 6 variables Product Related Duration, Product Related, Exit Rates, Page Values, Visitor Type, and Month. We found that this model had an accuracy of 88.6%, which is not great, but better than purely guessing. We also tried to use a machine learning technique and our final model has ntree=20 and mtry=sqrt(6) as the hyperparameters and achieved an accuracy of 90.39%. As we mentioned above, our data was very unbalanced where 85% of the observations had FALSE as the Revenue class labels. This was the main reason that our models had relatively low sensitivity and poor predictive performance. To improve this in the future, we would need a larger and more balanced dataset. We might also think about just cut the FALSE class size down to match the TRUE class size. If doing so, our data size would reduce a lot to just around 4,000 observations. Since the modeling part was mainly about classifications, there were a lot more classification methods out there that we could potentially try, such as KNN, Decision Tree, Boosting, etc. They were supposed to be more powerful. If we had more time, we would definitely explore those methods. This could be the future direction. 
+
+The second question our group chose to answer was: Are returning visitors more likely to make revenue on the website? And as a corollary: Which variables are significant in predicting whether the visitor is new or returning? Surprisingly, it was found that the new visitors were more likely to complete a transaction than the returning visitors. Our group expected the opposite because we believed that a returning visitor would want to buy more since they are more familiar with the quality of the goods. We also found the “best” model to predict what type of visitor a person was. This model contained ten of the seventeen variables we could have used, making it very complex. The accuracy is low (85%), but the sensitivity is even lower. Similar to the previous complication, there is over 86% of visitors marked as returning. Thus, this negatively affected the model’s predictive performance. With our findings, online retailer companies could better understand their customers and improve their strategies to generate more revenue. For example, with the knowledge that Page Values had a positive coefficient and ExitRates had a negative coefficient, website designers should make their web page more attractive and have higher page values. Also, opposite from what one would expect, returning visitors were less likely to make a purchase. Companies might want to reflect on the quality of their products and the overall shopping experience they provide in order to satisfy their returning visitors. For the future investigation, we would like to have more information on users’ background and purchasing choices so that more underlying preferences of different visitor types could be discovered.
+
+
+
+
+
+
+
+
+
